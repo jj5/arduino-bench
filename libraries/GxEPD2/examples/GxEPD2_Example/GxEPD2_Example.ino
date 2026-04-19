@@ -42,8 +42,10 @@
 #include <GxEPD2_3C.h>
 #include <GxEPD2_4C.h>
 #include <GxEPD2_7C.h>
+#include <GxEPD2_BW_SHM.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
+#include <Fonts/FreeSansBold24pt7b.h>
 
 // select the display constructor line in one of the following files (old style):
 #include "GxEPD2_display_selection.h"
@@ -77,6 +79,7 @@
 #include "bitmaps/Bitmaps640x384.h" // 7.5"  b/w
 #include "bitmaps/Bitmaps800x276.h" // 5.79" b/w
 #include "bitmaps/Bitmaps800x480.h" // 7.5"  b/w
+#include "bitmaps/Bitmaps920x680.h" // 5.65" b/w
 #include "bitmaps/Bitmaps960x640.h" // 10.2"  b/w
 #include "bitmaps/Bitmaps960x680.h" // 13.3"  b/w
 // 3-color
@@ -96,11 +99,14 @@
 #include "bitmaps/Bitmaps3c960x680.h" // 13.3" b/w/r
 #include "bitmaps/WS_Bitmaps800x600.h" // 6.0"  grey
 // 4-color
+#include "bitmaps/Bitmaps4c200x200.h" // 1.54" 4-color
 #include "bitmaps/Bitmaps4c128x250.h" // 2.13" 4-color
 #include "bitmaps/Bitmaps4c184x360.h" // 2.66" 4-color
 #include "bitmaps/Bitmaps4c168x384.h" // 2.9" 4-color
 #include "bitmaps/WS_Bitmaps4c168x168.h" // 4.37" 4-color
 #include "bitmaps/WS_Bitmaps4c168x400.h" // 3.00" 4-color
+#include "bitmaps/Bitmaps4c184x384.h" // 3.5" 4-color
+#include "bitmaps/Bitmaps4c800x480.h" // 3.97" 4-color
 #include "bitmaps/Bitmaps4c400x300.h" // 4.2" 4-color
 #include "bitmaps/Bitmaps4c792x272.h" // 5.79" 4-color
 #include "bitmaps/Bitmaps4c960x640.h" // 11.6" 4-color
@@ -113,7 +119,7 @@
 #include "bitmaps/Bitmaps1304x984.h" // 12.48" b/w
 #include "bitmaps/Bitmaps1360x480.h" // 10.85" b/w
 #include "bitmaps/Bitmaps3c1304x984.h" // 12.48" b/w/r
-#include "bitmaps/Bitmaps7c800x480.h" // 7.3" 7-color
+//#include "bitmaps/Bitmaps7c800x480.h" // 7.3" 7-color
 #endif
 
 #else
@@ -166,6 +172,7 @@ SPIClass hspi(HSPI);
 void setup()
 {
   Serial.begin(115200);
+  //delay(5000);
   Serial.println();
   Serial.println("setup");
   delay(100);
@@ -190,6 +197,7 @@ void setup()
   pinMode(7, OUTPUT);
   digitalWrite(7, HIGH); // enable power to the panel
 #endif
+  if (display.epd2.panel == GxEPD2::GDEH0576T81) display.epd2.enableRead(SCK, MOSI); // enable read temperature, uses SW SPI
   //display.init(115200); // default 10ms reset pulse, e.g. for bare panels with DESPI-C02
   display.init(115200, true, 2, false); // USE THIS for Waveshare boards with "clever" reset circuit, 2ms reset pulse
   //display.init(115200, true, 10, false, SPIn, SPISettings(4000000, MSBFIRST, SPI_MODE0)); // extended init method with SPI channel and/or settings selection
@@ -199,7 +207,7 @@ void setup()
     Serial.print("pages = "); Serial.print(display.pages()); Serial.print(" page height = "); Serial.println(display.pageHeight());
     delay(1000);
   }
-  //display.clearScreen(); return;
+  //display.clearScreen(); display.powerOff(); return;
   // first update should be full refresh
   helloWorld();
   delay(1000);
@@ -228,6 +236,11 @@ void setup()
   drawBitmaps();
   //display.powerOff(); return;
   drawGraphics();
+  if ((display.epd2.panel == GxEPD2::GDEM035F51) || (display.epd2.panel == GxEPD2::GDEM0397F81))
+  {
+    draw4colors();
+    delay(4000);
+  }
   //display.powerOff(); return;
 #if !defined(__AVR) // takes too long!
   if ((display.epd2.panel == GxEPD2::ACeP565) || (display.epd2.panel == GxEPD2::GDEY073D46) || (display.epd2.panel == GxEPD2::ACeP730) ||
@@ -238,7 +251,7 @@ void setup()
     draw7colors();
     delay(4000);
     display.epd2.drawNativeColors(); delay(2000);
-    //return;
+    //display.powerOff(); return;
   }
 #endif
   if (display.epd2.hasPartialUpdate)
@@ -251,6 +264,7 @@ void setup()
   //showBox(16, 56, 48, 32, true);
   display.powerOff();
   deepSleepTest();
+  //deepSleepTestPartialUpdate();
 #if defined(ESP32) && defined(_GxBitmaps1304x984_H_)
   drawBitmaps1304x984();
   display.powerOff();
@@ -616,6 +630,82 @@ void deepSleepTest()
   //Serial.println("deepSleepTest done");
 }
 
+void deepSleepTestPartialUpdate()
+{
+  if (display.epd2.panel != GxEPD2::GDEY075T7) return; // so far only implemented for GxEPD2_750_GDEY075T7
+  //Serial.println("deepSleepTestPartialUpdate");
+  const char hibernating[] = "hibernating ...";
+  const char wokeup[] = "woke up";
+  const char from[] = "from deep sleep";
+  const char again[] = "again";
+  display.setRotation(1);
+  display.setFont(&FreeSansBold24pt7b);
+  if (display.epd2.WIDTH < 104) display.setFont(0);
+  display.setTextColor(GxEPD_BLACK);
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  // center text
+  display.getTextBounds(hibernating, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby;
+  display.setFullWindow();
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(hibernating);
+  }
+  while (display.nextPage());
+  display.hibernate();
+  delay(10000);
+  // Restore previous buffer
+  // so far only implemented for GxEPD2_750_GDEY075T7
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(hibernating);
+  }
+  while (display.nextPageToPrevious());
+  display.getTextBounds(wokeup, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t wx = (display.width() - tbw) / 2;
+  uint16_t wy = ((display.height() / 3) - tbh / 2) - tby; // y is base line!
+  display.getTextBounds(from, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t fx = (display.width() - tbw) / 2;
+  uint16_t fy = ((display.height() * 2 / 3) - tbh / 2) - tby; // y is base line!
+  display.setPartialWindow(0, 0, display.width(), display.height());
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(wx, wy);
+    display.print(wokeup);
+    display.setCursor(fx, fy);
+    display.print(from);
+  }
+  while (display.nextPage());
+  delay(5000);
+  display.getTextBounds(hibernating, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t hx = (display.width() - tbw) / 2;
+  uint16_t hy = ((display.height() / 3) - tbh / 2) - tby; // y is base line!
+  display.getTextBounds(again, 0, 0, &tbx, &tby, &tbw, &tbh);
+  uint16_t ax = (display.width() - tbw) / 2;
+  uint16_t ay = ((display.height() * 2 / 3) - tbh / 2) - tby; // y is base line!
+  display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(hx, hy);
+    display.print(hibernating);
+    display.setCursor(ax, ay);
+    display.print(again);
+  }
+  while (display.nextPage());
+  display.hibernate();
+  //Serial.println("deepSleepTestPartialUpdate done");
+}
+
 void showBox(uint16_t x, uint16_t y, uint16_t w, uint16_t h, bool partial)
 {
   //Serial.println("showBox");
@@ -861,6 +951,9 @@ void drawBitmaps()
 #ifdef _WS_Bitmaps800x600_H_
   drawBitmaps800x600();
 #endif
+#if defined(ESP32) && defined(_GxBitmaps920x680_H_)
+  drawBitmaps920x680();
+#endif
 #if defined(ESP32) && defined(_GxBitmaps960x640_H_)
   drawBitmaps960x640();
 #endif
@@ -915,6 +1008,9 @@ void drawBitmaps()
   drawBitmaps3c800x276();
 #endif
   // 4-color
+#if defined(_GxBitmaps4c200x200_H_)
+  drawBitmaps4c200x200();
+#endif
 #if defined(_GxBitmaps4c128x250_H_)
   drawBitmaps4c128x250();
 #endif
@@ -927,8 +1023,14 @@ void drawBitmaps()
 #if defined(_GxBitmaps4c184x360_H_)
   drawBitmaps4c184x360();
 #endif
+#if defined(_GxBitmaps4c184x384_H_)
+  drawBitmaps4c184x384();
+#endif
 #if defined(_GxBitmaps4c400x300_H_)
   drawBitmaps4c400x300();
+#endif
+#if defined(_GxBitmaps4c800x480_H_)
+  drawBitmaps4c800x480();
 #endif
 #if defined(_GxBitmaps4c960x640_H_)
   drawBitmaps4c960x640();
@@ -1523,6 +1625,48 @@ void drawBitmaps800x480()
       display.refresh(false); // full update
     }
   }
+#if defined(ESP32) && false
+  if (display.epd2.panel == GxEPD2::GDEP073E01)
+  {
+    int16_t wp = display.epd2.WIDTH / 5;
+    int16_t hp = display.epd2.HEIGHT / 5;
+    int16_t n = 0;
+    for (int16_t k = 0; k < 3; k++)
+    {
+      display.writeScreenBuffer();
+      for (int16_t i = 0; i < 5; i++)
+      {
+        for (int16_t j = 0; j < 5; j++)
+        {
+          if ((n++ % 2) || (k == 2))
+          {
+            display.epd2.writeImagePart(Bitmap800x480_1, 0, i * wp, j * hp, 800, 480, i * wp, j * hp, wp, hp, false, false, true);
+          }
+        }
+      }
+      display.refresh(false);
+      delay(2000);
+    }
+  }
+#endif
+}
+#endif
+
+#if defined(ESP32) && defined(_GxBitmaps920x680_H_)
+void drawBitmaps920x680()
+{
+  if (display.epd2.panel == GxEPD2::GDEH0576T81)
+  {
+    display.drawImage(Bitmap920x680_1, 0, 0, 920, 680, false, true, true); delay(3000);
+    display.drawImage(Bitmap920x680_2, 0, 0, 920, 680, false, true, true); delay(3000);
+    display.drawImage(Bitmap920x680_3, 0, 0, 920, 680, false, true, true); delay(3000);
+    //display.drawImage(Bitmap920x680_p1, 0, 0, 920, 680, false, true, true); delay(3000);
+    display.drawNative(Bitmap920x680_3, Bitmap920x680_p1, 0, 0, 920, 680, false, true, true); delay(2000); // old to new
+    display.drawNative(Bitmap920x680_p1, Bitmap920x680_p2, 0, 0, 920, 680, false, true, true); delay(2000); // old to new
+    display.drawNative(Bitmap920x680_p2, Bitmap920x680_p3, 0, 0, 920, 680, false, true, true); delay(2000); // old to new
+    display.drawNative(Bitmap920x680_p3, Bitmap920x680_3, 0, 0, 920, 680, false, true, true); delay(2000); // old to new
+    display.drawNative(Bitmap920x680_3, Bitmap920x680_1, 0, 0, 920, 680, false, true, true); delay(2000); // old to new
+  }
 }
 #endif
 
@@ -1969,7 +2113,7 @@ void drawBitmaps3c800x480()
 #else
   bitmap_pair bitmap_pairs[] = {}; // not enough code space
 #endif
-  if (display.epd2.panel == GxEPD2::GDEW075Z08)
+  if ((display.epd2.panel == GxEPD2::GDEW075Z08) || (display.epd2.panel == GxEPD2::GDEY075Z08))
   {
     for (uint16_t i = 0; i < sizeof(bitmap_pairs) / sizeof(bitmap_pair); i++)
     {
@@ -1981,6 +2125,28 @@ void drawBitmaps3c800x480()
         display.drawBitmap(0, 0, bitmap_pairs[i].red, display.epd2.WIDTH, display.epd2.HEIGHT, GxEPD_RED);
       }
       while (display.nextPage());
+      delay(2000);
+    }
+  }
+  if (((display.epd2.panel == GxEPD2::GDEP073E01) || (display.epd2.panel == GxEPD2::GDEY073D46)) && true)
+  {
+    int16_t wp = display.epd2.WIDTH / 5;
+    int16_t hp = display.epd2.HEIGHT / 5;
+    int16_t n = 0;
+    for (int16_t k = 0; k < 3; k++)
+    {
+      display.writeScreenBuffer();
+      for (int16_t i = 0; i < 5; i++)
+      {
+        for (int16_t j = 0; j < 5; j++)
+        {
+          if ((n++ % 2) || (k == 2))
+          {
+            display.epd2.writeImagePart(Bitmap3c800x480_1_black, Bitmap3c800x480_1_red, i * wp, j * hp, 800, 480, i * wp, j * hp, wp, hp, true, false, true);
+          }
+        }
+      }
+      display.refresh(false);
       delay(2000);
     }
   }
@@ -2052,6 +2218,17 @@ void drawBitmaps3c1304x984()
 }
 #endif
 
+#if defined(_GxBitmaps4c200x200_H_)
+void drawBitmaps4c200x200()
+{
+  if (display.epd2.panel == GxEPD2::GDEM0154F51H)
+  {
+    display.drawNative(Bitmap4c200x200, 0, 0, 0, 200, 200, true, false, true);
+    delay(5000);
+  }
+}
+#endif
+
 #if defined(_GxBitmaps4c128x250_H_)
 void drawBitmaps4c128x250()
 {
@@ -2108,12 +2285,36 @@ void drawBitmaps4c184x360()
 }
 #endif
 
+#if defined(_GxBitmaps4c184x384_H_)
+void drawBitmaps4c184x384()
+{
+  if (display.epd2.panel == GxEPD2::GDEM035F51)
+  {
+    display.drawNative(Bitmap4c184x384, 0, (display.epd2.WIDTH - 184) / 2, (display.epd2.HEIGHT - 384) / 2, 184, 384, true, false, true);
+    delay(5000);
+  }
+}
+#endif
+
 #if defined(_GxBitmaps4c400x300_H_)
 void drawBitmaps4c400x300()
 {
   if (display.epd2.panel == GxEPD2::GDEY0420F51)
   {
     display.drawNative(Bitmap4c400x300, 0, (display.epd2.WIDTH - 400) / 2, (display.epd2.HEIGHT - 300) / 2, 400, 300, false, false, true);
+    delay(5000);
+  }
+}
+#endif
+
+#if defined(_GxBitmaps4c800x480_H_)
+void drawBitmaps4c800x480()
+{
+  if ((display.epd2.panel == GxEPD2::GDEM0397F81) || (display.epd2.panel == GxEPD2::GDEM075F52))
+  {
+    display.drawNative(Bitmap4c800x480_1, 0, (display.epd2.WIDTH - 800) / 2, (display.epd2.HEIGHT - 480) / 2, 800, 480, true, false, true);
+    delay(5000);
+    display.drawNative(Bitmap4c800x480_2, 0, (display.epd2.WIDTH - 800) / 2, (display.epd2.HEIGHT - 480) / 2, 800, 480, true, false, true);
     delay(5000);
   }
 }
@@ -2202,13 +2403,29 @@ void drawBitmaps7c800x480()
 #if defined(_WS_Bitmaps7c300x180_H_)
 void drawBitmaps7c300x180()
 {
-  if ((display.epd2.panel == GxEPD2::GDEY073D46) || (display.epd2.panel == GxEPD2::ACeP730) || (display.epd2.panel == GxEPD2::GDEP0565D90))
+  //if ((display.epd2.panel == GxEPD2::GDEY073D46) || (display.epd2.panel == GxEPD2::ACeP730) || (display.epd2.panel == GxEPD2::GDEP0565D90))
+  if ((display.epd2.panel == GxEPD2::ACeP730) || (display.epd2.panel == GxEPD2::GDEP0565D90))
   {
     display.drawNative(WS_Bitmap7c300x180, 0, (display.epd2.WIDTH - 300) / 2, (display.epd2.HEIGHT - 180) / 2, 300, 180, false, false, true);
     delay(5000);
   }
 }
 #endif
+
+void draw4colors()
+{
+  display.setRotation(0);
+  uint16_t h = display.height() / 4;
+  display.firstPage();
+  do
+  {
+    display.fillRect(0, 0, display.width(), h, GxEPD_WHITE);
+    display.fillRect(0, 1 * h, display.width(), h, GxEPD_YELLOW);
+    display.fillRect(0, 2 * h, display.width(), h, GxEPD_RED);
+    display.fillRect(0, 3 * h, display.width(), h, GxEPD_BLACK);
+  }
+  while (display.nextPage());
+}
 
 void draw7colors()
 {

@@ -3,7 +3,7 @@
 //
 // based on Demo Example from Good Display, available here: https://www.good-display.com/comp/xcompanyFile/downloadNew.do?appId=24&fid=2456&id=1845
 // Panel: GDEM0397T81 : https://www.good-display.com/product/613.html
-// Controller : SSD2677 : https://v4.cecdn.yun300.cn/100001_1909185148/SSD2677%28Rev1.1%29N.pdf
+// Controller : SSD1677 : https://v4.cecdn.yun300.cn/100001_1909185148/SSD1677.pdf
 //
 // Author: Jean-Marc Zingg
 //
@@ -75,6 +75,11 @@ void GxEPD2_397_GDEM0397T81::writeImageAgain(const uint8_t bitmap[], int16_t x, 
   _writeImage(0x24, bitmap, x, y, w, h, invert, mirror_y, pgm); // set current
 }
 
+void GxEPD2_397_GDEM0397T81::writeImageToPrevious(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  _writeImage(0x26, bitmap, x, y, w, h, invert, mirror_y, pgm);
+}
+
 void GxEPD2_397_GDEM0397T81::_writeImage(uint8_t command, const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
@@ -132,6 +137,12 @@ void GxEPD2_397_GDEM0397T81::writeImagePartAgain(const uint8_t bitmap[], int16_t
     int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   _writeImagePart(0x24, bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
+  _writeImagePart(0x26, bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
+}
+
+void GxEPD2_397_GDEM0397T81::writeImagePartToPrevious(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
   _writeImagePart(0x26, bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
 }
 
