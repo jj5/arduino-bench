@@ -102,13 +102,15 @@ void setup() {
   lcd.setCursor( 4, 2 );
   lcd.print( "With Jay Jay!" );
   
-  delay( 5000 );
-  
-  lcd.clear();
+  //delay( 5000 );
+  //lcd.clear();
 
 }
 
 void loop() {
+
+  return;
+
   // 2025-11-24 jj5 - get a reading from our water sensor
   int value = analogRead( SENSOR_PIN );
 
